@@ -1,50 +1,35 @@
 <?php
-// db connection protocols
-$servername = "localhost";
-$username = "udvnhgd3sliun";
-$password = "32w$)kA$(1x6";
-$dbname   = "dbjvgekqfezksk";
+require 'config.php';
+require_login();
 
-// retrieve POST JSON data
+// read JSON
 $input = file_get_contents("php://input");
-$data = json_decode($input, true);
+$data  = json_decode($input, true);
 
-// validate req'd fields provided
-if (!isset($data['queue']) || !isset($data['queueName'])) {
-    echo json_encode(['success' => false, 'message' => 'Missing queue data or queue name.']);
+if (empty($data['queue']) || empty($data['queueName'])) {
+    echo json_encode(['success'=>false,'message'=>'Missing queue name or items.']);
     exit;
 }
 
-// prep data: 
-// - $queueName: the name provided by the user for saved queue
-// - $queueItems: an array of pose names (preserves ordering)
-$queueName = $data['queueName'];
-$queueItems = $data['queue'];
+$userId    = $_SESSION['user_id'];
+$queueName = trim($data['queueName']);
+$items     = $data['queue'];
+$itemsJson = json_encode($items);
 
-// encode the queue items array as JSON
-$encodedItems = json_encode($queueItems);
-
-// create db connection
-$conn = new mysqli($servername, $username, $password, $dbname);
-if ($conn->connect_error) {
-    echo json_encode(['success' => false, 'message' => 'Connection failed: ' . $conn->connect_error]);
-    exit;
-}
-
-//   "saved_queues" table with columns:
-//   id (INT AUTO_INCREMENT PRIMARY KEY)
-//   queue_name (VARCHAR or TEXT)
-//   items (TEXT)
-//   created_at (TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
-$stmt = $conn->prepare("INSERT INTO saved_queues (queue_name, items) VALUES (?, ?)");
-$stmt->bind_param("ss", $queueName, $encodedItems);
+// prep insert, relying on UNIQUE(user_id, queue_name) in schema
+$stmt = $conn->prepare("
+    INSERT INTO saved_queues (user_id, queue_name, items)
+    VALUES (?, ?, ?)
+");
+$stmt->bind_param("iss", $userId, $queueName, $itemsJson);
 
 if ($stmt->execute()) {
-    echo json_encode(['success' => true, 'message' => 'Queue saved successfully.']);
+    echo json_encode(['success'=>true,'message'=>'Queue saved successfully.']);
 } else {
-    echo json_encode(['success' => false, 'message' => 'Error saving queue.']);
+    // duplicate name for this user?
+    if ($conn->errno === 1062) {
+        echo json_encode(['success'=>false,'message'=>'You already have a queue named “'.htmlspecialchars($queueName).'”. Please choose another name.']);
+    } else {
+        echo json_encode(['success'=>false,'message'=>'Database error: '.$conn->error]);
+    }
 }
-
-$stmt->close();
-$conn->close();
-?>
