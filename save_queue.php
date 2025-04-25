@@ -20,6 +20,7 @@ $itemsJson = json_encode($items);
 $stmt = $conn->prepare("
     INSERT INTO saved_queues (user_id, queue_name, items)
     VALUES (?, ?, ?)
+    ON DUPLICATE KEY UPDATE items = VALUES(items)
 ");
 $stmt->bind_param("iss", $userId, $queueName, $itemsJson);
 

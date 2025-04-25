@@ -15,18 +15,6 @@ $itemStmt = $conn->prepare("
 $itemStmt->execute();
 $itemsResult = $itemStmt->get_result();
 
-// get user's saved queues
-$queueStmt = $conn->prepare("
-    SELECT
-      _id    AS id,
-      queue_name
-    FROM saved_queues
-   WHERE user_id = ?
-ORDER BY created_at DESC
-");
-$queueStmt->bind_param("i", $userId);
-$queueStmt->execute();
-$savedResult = $queueStmt->get_result();
 ?>
 <!DOCTYPE html>
 <html>
@@ -164,20 +152,6 @@ $savedResult = $queueStmt->get_result();
     <a href="logout.php">Log out</a>
   </div>
 
-  <!-- saved queue dropdown -->
-  <div id="savedQueuesSection">
-    <h2>My Saved Queues</h2>
-    <select id="savedQueueSelect">
-      <option value="">-- Select a saved queue --</option>
-      <?php while ($q = $savedResult->fetch_assoc()): ?>
-        <option value="<?=htmlspecialchars($q['id'])?>">
-          <?=htmlspecialchars($q['queue_name'])?>
-        </option>
-      <?php endwhile; ?>
-    </select>
-    <button id="loadQueueBtn">Load Queue</button>
-  </div>
-
   <!-- gallery of thumbnails -->
   <h2>Available Items</h2>
   <div id="thumbnails">
@@ -208,6 +182,7 @@ $savedResult = $queueStmt->get_result();
     <div id="queueItems"></div>
     <div class="action-buttons">
       <button id="clearQueueBtn">Clear Queue</button>
+      <button id="resetQueueBtn">Reset Queue</button>
       <button id="saveQueueBtn">Save Queue</button>
     </div>
   </div>
@@ -243,12 +218,12 @@ $savedResult = $queueStmt->get_result();
 
     // app logic
     document.addEventListener('DOMContentLoaded', () => {
-      const thumbnails       = document.querySelectorAll('.thumbnail-container');
-      const queueContainer   = document.getElementById('queueItems');
-      const clearBtn         = document.getElementById('clearQueueBtn');
-      const saveBtn          = document.getElementById('saveQueueBtn');
-      const loadBtn          = document.getElementById('loadQueueBtn');
-      const savedQueueSelect = document.getElementById('savedQueueSelect');
+      const thumbnails     = document.querySelectorAll('.thumbnail-container');
+      const queueContainer = document.getElementById('queueItems');
+      const clearBtn       = document.getElementById('clearQueueBtn');
+      const saveBtn        = document.getElementById('saveQueueBtn');
+      const resetBtn       = document.getElementById('resetQueueBtn');
+      const queueData      = JSON.parse(sessionStorage.getItem("queueData"));
 
       function addQueueItem(name, link, desc) {
         const qi = document.createElement('div');
@@ -271,6 +246,21 @@ $savedResult = $queueStmt->get_result();
         queueContainer.appendChild(qi);
       }
 
+      function display_queue(q_obj) {
+        queueContainer.innerHTML = '';
+        if (!q_obj.queue) return;
+        q_obj.queue.forEach(name => {
+          const thumb = Array.from(thumbnails)
+                              .find(el => el.dataset.name === name);
+          if (thumb) {
+            addQueueItem(thumb.dataset.name,
+                          thumb.dataset.link,
+                          thumb.dataset.description);
+          }
+        });
+      }
+      display_queue(queueData)
+
       // build new queue via thumbnail selection
       thumbnails.forEach(t => {
         t.addEventListener('click', () => {
@@ -283,13 +273,24 @@ $savedResult = $queueStmt->get_result();
         queueContainer.innerHTML = '';
       });
 
+      // reset queue
+      resetBtn.addEventListener('click', () => {
+        display_queue(queueData)
+      });
+
       // save queue
       saveBtn.addEventListener('click', () => {
         const names = Array.from(queueContainer.querySelectorAll('.queue-item'))
                            .map(el => el.dataset.name);
         if (!names.length) return alert('Queue is empty.');
-        const qn = prompt('Name this queue:');
-        if (!qn || !qn.trim()) return alert('A name is required.');
+        var qn;
+        if (!queueData.queueName) {
+          qn = prompt('Name this queue:');
+          if (!qn || !qn.trim()) return alert('A name is required.');
+        } else {
+          qn = queueData.queueName;
+        }
+        
         fetch('save_queue.php', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
@@ -300,34 +301,12 @@ $savedResult = $queueStmt->get_result();
           if (d.success) {
             alert('Saved!');
             queueContainer.innerHTML = '';
-            location.reload();
+            window.location.href = "home.php";
           } else {
             alert('Error: ' + d.message);
           }
         })
         .catch(e => { console.error(e); alert('Save failed.'); });
-      });
-
-      // load saved queue
-      loadBtn.addEventListener('click', () => {
-        const qid = savedQueueSelect.value;
-        if (!qid) return alert('Please select a saved queue.');
-        fetch(`get_queue.php?id=${encodeURIComponent(qid)}`)
-          .then(r => r.json())
-          .then(d => {
-            if (!d.success) return alert('Error: ' + d.message);
-            queueContainer.innerHTML = '';
-            d.queue.forEach(name => {
-              const thumb = Array.from(thumbnails)
-                                 .find(el => el.dataset.name === name);
-              if (thumb) {
-                addQueueItem(thumb.dataset.name,
-                             thumb.dataset.link,
-                             thumb.dataset.description);
-              }
-            });
-          })
-          .catch(e => { console.error(e); alert('Load failed.'); });
       });
     });
   </script>
