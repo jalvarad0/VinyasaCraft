@@ -1,9 +1,8 @@
-<!-- Notes for self:
-    - https://medium.com/hackademia/how-to-make-a-php-gemini-ai-web-app-6b592ef64f9e -> Example of quick setup
-    -  https://github.com/google-gemini-php/client  -> examples
-    - https://github.com/gemini-api-php/client -> examples -->
-
 <?php
+    //Notes for self:
+    // - https://medium.com/hackademia/how-to-make-a-php-gemini-ai-web-app-6b592ef64f9e -> Example of quick setup
+    // -  https://github.com/google-gemini-php/client  -> examples
+    // - https://github.com/gemini-api-php/client -> examples
     header('Content-Type: application/json');
     require_once 'config.php'; 
     $DEBUG = false;
@@ -200,7 +199,7 @@ if ($endpoint === 'generate-sequence') {
     // Yessir, encode and send off to caller!
     echo json_encode([
         'gemini' => $gemini_result,
-        'poseNames' => $pose_names
+        'pose_names' => $pose_names
     ]);
     exit();
 }
