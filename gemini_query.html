@@ -157,7 +157,7 @@
 
             // Okay, gemini should have responded. Lets parse that bad boy.
             const data = await response.json();
-            if (DEBUG) console.log(response.json());
+            if (DEBUG) console.log(data);
             if (DEBUG) console.log(data.gemini); // Lets make sure gemini gave us proper response
             if (DEBUG) console.log(data.pose_names); // Lets make sure pose names are good
 
