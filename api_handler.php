@@ -7,10 +7,10 @@
     require_once 'config.php'; 
     $DEBUG = false;
     // Gemini helper function that will send the prompt over to gemini and check response
-    function call_gemini_API($api_key, $prompt) {
+    function call_gemini_API($gemini_api_key, $prompt) {
         
         // We establish the url + package in the key 
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=' . $api_key;
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=' . $gemini_api_key;
 
         // We now format the data based on what gemini is expecting https://ai.google.dev/api/generate-content#v1beta.models.generateContent
         $data = [
@@ -21,6 +21,8 @@
 
         // Lets encode into a json object
         $json_data = json_encode($data);
+        error_log("Sending to Gemini:");
+        error_log($json_data);
 
         // Lets now instantiate a cURL session + configure it which will allow us to send json to gemini
         $ch = curl_init($url);
@@ -28,6 +30,8 @@
         curl_setopt($ch, CURLOPT_POSTFIELDS, $json_data); // Lets feed our json_data
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']); // Lets set content type so that it knows its json
         $response = curl_exec($ch); // Execute the request and store response
+        error_log("Gemini response:");
+        error_log($response);
 
         // Check for errors
         if (curl_errno($ch)) {
@@ -93,10 +97,7 @@ if ($endpoint === 'generate-sequence') {
     $names = $input['names'] ?? [];
     $targets = $input['targets'] ?? [];
     $queue_name = $input['queue_name'] ?? '';
-    if ($DEBUG) print_r($input);
-    if ($DEBUG) print_r($names);
-    if ($DEBUG) print_r($targets);
-    if ($DEBUG) echo $queue_name;
+    error_log(print_r($names, true));
 
     // Are we missing anything? If so, lets just go back
     if ((!$names && !$targets) || !$queue_name) {
@@ -161,12 +162,12 @@ if ($endpoint === 'generate-sequence') {
     $prompt = "Create a yoga sequence only using the following poses: $pose_list_string.
     The sequence should start and end with Corpse Pose.
     Return it in CSV format with columns: Pose Name, Duration (seconds).
-    Please ensure all text is lowercase. Do not include anything other than what I have
-    asked for.";
+    Please ensure the spelling matches what is given. Do not include anything other than
+    what I have asked for.";
 
     if ($DEBUG) echo $prompt; 
 
-    $gemini_response = call_gemini_API($api_key, $prompt);
+    $gemini_response = call_gemini_API($gemini_api_key, $prompt);
 
     // Did we error out?
     if (isset($gemini_response['error'])) {
@@ -191,7 +192,7 @@ if ($endpoint === 'generate-sequence') {
     foreach ($pose_lines as $line) {
         $columns = explode(',', $line);
         if (!empty($columns[0])) {
-            $pose_names[] = trim(strtolower($columns[0]));
+            $pose_names[] = trim($columns[0]);
         }
     }
     if ($DEBUG) echo json_encode($pose_names);
@@ -222,7 +223,11 @@ if ($endpoint === 'save-sequence') {
     if($DEBUG) echo $pose_names; 
     // Lets timestamp when this query was made
     $createdAt = date('Y-m-d H:i:s');
-    $userId = 1; // TODO BUG: Juan this needs to be updated with session id
+    if (empty($_SESSION['user_id'])) {
+        echo json_encode(['error' => 'User not logged in']);
+        exit();
+    }
+    $userId = $_SESSION['user_id'];
 
     // Alright, lets create the sql statement
     $sql = "INSERT INTO saved_queues (queue_name, items, created_at, user_id) VALUES (?, ?, ?, ?)";

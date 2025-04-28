@@ -273,6 +273,21 @@
             } else {
                 results_container.textContent = data.error || 'Failed to save sequence.';
             }
+
+            // Clear all selections after save
+            document.querySelectorAll('.pose_checkbox, .target_checkbox').forEach(curr => curr.checked = false);
+
+            // Clear input box
+            queue_name_input.value = '';
+
+            // Disable buttons
+            save_query_button.disabled = true;
+            regenerate_query_button.disabled = true;
+
+            // Reset arrays
+            generated_pose_names = [];
+            last_selected_names = [];
+            last_selected_targets = [];
         } catch (error) {
             console.error('Error saving flow:', error);
             results_container.textContent = `An error occurred: ${error.message}`;
