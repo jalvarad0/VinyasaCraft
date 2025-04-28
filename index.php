@@ -8,7 +8,7 @@ $baseUrl  = "https://zackw1.sg-host.com/Project_4/images/";
 
 // get thumbnail items and create target list
 $itemStmt = $conn->prepare("
-    SELECT english_name, sanskrit_name, link, targets
+    SELECT english_name, sanskrit_name, link, targets, category
       FROM supported_postures
   ORDER BY english_name ASC
 ");
@@ -28,16 +28,6 @@ while ($row = $itemResult->fetch_assoc()) {
 }
 sort($targetSet, SORT_NATURAL | SORT_FLAG_CASE);
 
-// get saved queues
-$queueStmt = $conn->prepare("
-    SELECT _id AS id, queue_name
-      FROM saved_queues
-     WHERE user_id = ?
-  ORDER BY created_at DESC
-");
-$queueStmt->bind_param("i", $userId);
-$queueStmt->execute();
-$savedResult = $queueStmt->get_result();
 ?>
 <!DOCTYPE html>
 <html>
@@ -112,6 +102,14 @@ $savedResult = $queueStmt->get_result();
       position: relative; text-align: center;
       cursor: pointer;
     }
+    .warning {
+      width: 50px;
+      height: 150px;
+      background-color: yellow;
+      border: 2px solid #ff0000;
+      display: inline-block; 
+      margin: 5px; 
+    }
     .thumbnail-container img {
       width: 150px; border: 1px solid #ddd;
       border-radius: 4px; padding: 5px;
@@ -130,27 +128,17 @@ $savedResult = $queueStmt->get_result();
       visibility: visible; opacity: 1;
     }
     .name-caption { margin-top: 5px; font-weight: bold; }
+    h1 {
+        text-align: center;
+      }
   </style>
 </head>
 <body>
+  <h1> Flow Creator </h1>
   <!-- user login/logout -->
   <div id="loginBar">
     Logged in as <strong><?=htmlspecialchars($username)?></strong>
     <a href="logout.php">Log out</a>
-  </div>
-
-  <!-- saved queues -->
-  <div id="savedQueuesSection">
-    <h2>My Saved Queues</h2>
-    <select id="savedQueueSelect">
-      <option value="">-- Select a saved queue --</option>
-      <?php while($q = $savedResult->fetch_assoc()): ?>
-        <option value="<?=htmlspecialchars($q['id'])?>">
-          <?=htmlspecialchars($q['queue_name'])?>
-        </option>
-      <?php endwhile; ?>
-    </select>
-    <button id="loadQueueBtn">Load Queue</button>
   </div>
 
   <!-- body part filtering -->
@@ -164,6 +152,10 @@ $savedResult = $queueStmt->get_result();
         </option>
       <?php endforeach; ?>
     </select>
+  </div>
+
+  <div class="header_buttons">
+    <button id="gemini_flow">Gemini Flow Auto-Generator</button>
   </div>
 
   <!-- selection queue -->
@@ -191,7 +183,8 @@ $savedResult = $queueStmt->get_result();
            data-name="<?=htmlspecialchars($row['english_name'])?>"
            data-description="<?=htmlspecialchars($row['sanskrit_name'])?>"
            data-link="<?=htmlspecialchars($link)?>"
-           data-targets="<?=htmlspecialchars($row['targets'])?>">
+           data-targets="<?=htmlspecialchars($row['targets'])?>"
+           data-category="<?=htmlspecialchars($row['category'])?>">
         <img src="<?=htmlspecialchars($link)?>" alt="<?=htmlspecialchars($row['english_name'])?>">
         <div class="description-overlay">
           <?=htmlspecialchars($row['sanskrit_name'])?>
@@ -207,18 +200,57 @@ $savedResult = $queueStmt->get_result();
       const queueContainer   = document.getElementById('queueItems');
       const clearBtn         = document.getElementById('clearQueueBtn');
       const saveBtn          = document.getElementById('saveQueueBtn');
-      const loadBtn          = document.getElementById('loadQueueBtn');
-      const savedQueueSelect = document.getElementById('savedQueueSelect');
       const filterSelect     = document.getElementById('targetFilter');
       const moveLeftBtn      = document.getElementById('moveLeftBtn');
       const moveRightBtn     = document.getElementById('moveRightBtn');
+      const queueData        = JSON.parse(sessionStorage.getItem("queueData"));
 
       let selectedItem = null;
 
-      function addQueueItem(name, link, desc) {
+      function queue_changed() {
+        console.log("Queue Changed");
+        // dict containing all abrupt transitions
+        warning_transitions = {
+            "Standing": ["Seated", "Prone", "Supine"],
+            "Seated": ["Standing"],
+            "Kneeling": [],
+            "Prone": ["Standing"],
+            "Supine": ["Standing"]
+        };
+        
+        // clear queue_warnings between goes
+        const queue_warnings = queueContainer.querySelectorAll('.warning');
+        queue_warnings.forEach(child => {
+            child.remove();
+        });
+
+        // get all thumbs and iterate through (create warnings as needed)
+        const children = Array.from(queueContainer.children);
+
+        // Use a manual index for iterating through children
+        for (let i = 0; i < children.length - 1; i++) {
+            console.log("i val: ", i);
+            
+            // Check if there is an abrupt transition
+            if (warning_transitions[children[i].dataset.category].includes(children[i + 1].dataset.category)) {
+                console.log("WARNING!!!!!!!!");
+
+                // Create a warning element
+                const warningElement = document.createElement('div');
+                warningElement.classList.add('warning');
+                warningElement.dataset.category = null;
+
+                // Insert the warning element before the next child
+                queueContainer.insertBefore(warningElement, children[i + 1]);
+            }
+        }
+      }
+
+      function addQueueItem(name, link, desc, cat) {
         const qi = document.createElement('div');
         qi.className = 'queue-item';
         qi.dataset.name = name;
+        qi.dataset.category = cat;
 
         // Remove button
         const removeBtn = document.createElement('button');
@@ -229,6 +261,7 @@ $savedResult = $queueStmt->get_result();
           e.stopPropagation();
           if (qi === selectedItem) selectedItem = null;
           qi.remove();
+          queue_changed();
         });
 
         const img = document.createElement('img');
@@ -253,10 +286,37 @@ $savedResult = $queueStmt->get_result();
         });
       }
 
+      // load saved queue
+      function load_queue(queueData) {
+        if (queueData.id == null) {
+          return;
+        }
+        queueData.queue.forEach(name => {
+          const thumb = thumbnails.find(el => el.dataset.name === name);
+          if (thumb) {
+            addQueueItem(
+              thumb.dataset.name,
+              thumb.dataset.link,
+              thumb.dataset.description,
+              thumb.dataset.category
+            );
+          }
+        });
+        queue_changed();
+      };
+
+      load_queue(queueData);
+
       // add pose on click
       thumbnails.forEach(t => {
         t.addEventListener('click', () => {
-          addQueueItem(t.dataset.name, t.dataset.link, t.dataset.description);
+          addQueueItem(
+            t.dataset.name,
+            t.dataset.link,
+            t.dataset.description,
+            t.dataset.category
+          );
+          queue_changed();
         });
       });
 
@@ -264,20 +324,28 @@ $savedResult = $queueStmt->get_result();
       clearBtn.addEventListener('click', () => {
         queueContainer.innerHTML = '';
         selectedItem = null;
+        queue_changed();
       });
 
       // shift pose left
       moveLeftBtn.addEventListener('click', () => {
         if (!selectedItem) return alert('Select a pose first.');
         const prev = selectedItem.previousElementSibling;
-        if (prev) queueContainer.insertBefore(selectedItem, prev);
+        if (prev) {
+          queueContainer.insertBefore(selectedItem, prev);
+          queue_changed();
+        }
+        
       });
 
       // shift pose right
       moveRightBtn.addEventListener('click', () => {
         if (!selectedItem) return alert('Select a pose first.');
         const next = selectedItem.nextElementSibling;
-        if (next) queueContainer.insertBefore(next, selectedItem);
+        if (next){
+          queueContainer.insertBefore(next, selectedItem);
+          queue_changed();
+        } 
       });
 
       // save queue
@@ -285,8 +353,13 @@ $savedResult = $queueStmt->get_result();
         const names = Array.from(queueContainer.querySelectorAll('.queue-item'))
                            .map(el => el.dataset.name);
         if (!names.length) return alert('Queue is empty.');
-        const qn = prompt('Name this queue:');
-        if (!qn || !qn.trim()) return alert('A name is required.');
+        var qn;
+        if (!queueData.queueName) {
+          qn = prompt('Name this queue:');
+          if (!qn || !qn.trim()) return alert('A name is required.');
+        } else {
+          qn = queueData.queueName;
+        }
 
         fetch('save_queue.php', {
           method: 'POST',
@@ -298,36 +371,12 @@ $savedResult = $queueStmt->get_result();
           if (d.success) {
             alert('Saved!');
             queueContainer.innerHTML = '';
-            location.reload();
+            window.location.href = "home.php";
           } else {
             alert('Error: ' + d.message);
           }
         })
         .catch(e => { console.error(e); alert('Save failed.'); });
-      });
-
-      // get/load saved queue
-      loadBtn.addEventListener('click', () => {
-        const qid = savedQueueSelect.value;
-        if (!qid) return alert('Please select a saved queue.');
-        fetch(`get_queue.php?id=${encodeURIComponent(qid)}`)
-          .then(r => r.json())
-          .then(d => {
-            if (!d.success) return alert('Error: ' + d.message);
-            queueContainer.innerHTML = '';
-            selectedItem = null;
-            d.queue.forEach(name => {
-              const thumb = thumbnails.find(el => el.dataset.name === name);
-              if (thumb) {
-                addQueueItem(
-                  thumb.dataset.name,
-                  thumb.dataset.link,
-                  thumb.dataset.description
-                );
-              }
-            });
-          })
-          .catch(e => { console.error(e); alert('Load failed.'); });
       });
 
       // filter selection gallery by body part
@@ -340,6 +389,10 @@ $savedResult = $queueStmt->get_result();
           t.style.display = (!filter || targets.includes(filter)) ? '' : 'none';
         });
       });
+    });
+    // Gemini button down here
+      gemini_flow.addEventListener('click', () => {
+        window.location.href = 'gemini_query.html'; 
     });
   </script>
 </body>
