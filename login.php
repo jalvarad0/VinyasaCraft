@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // success
             $_SESSION['user_id'] = $id;
             $_SESSION['username'] = $u;
-            header("Location: index.php");
+            header("Location: home.php");
             exit;
         }
     }
