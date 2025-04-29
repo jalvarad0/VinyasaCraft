@@ -1,18 +1,256 @@
+/* Page background and overall font */
 body {
-        font-family: Arial, sans-serif;
-        text-align: center;
-        padding: 40px;
-        background-color: #f0f0f0;
-    }
-    
-    button {
-        padding: 10px 20px;
-        font-size: 16px;
-        cursor: pointer;
-    }
-    
-    #output {
-        margin-top: 20px;
-        font-weight: bold;
-        color: #333;
-    }
+    background: url('../images/yoga_mat.jpg') no-repeat center center fixed; 
+    background-size: cover;
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+}
+
+/* Center everything and give some breathing room */
+.input_container {
+    max-width: 900px;
+    margin: 40px auto;
+    background: #ffffff;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+#results_container {
+    max-width: 900px;
+    margin: 20px auto;
+    padding: 20px;
+}
+
+/* Header */
+h1 {
+    text-align: center;
+    font-size: 36px;
+    margin-top: 20px;
+    color: white;
+}
+
+/* Top-right logout button */
+#logout_button {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    padding: 8px 20px;
+    background-color: #ff6666;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+#logout_button:hover {
+    background-color: #ff3333;
+}
+
+/* Row of buttons under header */
+.header_buttons {
+    display: flex;
+    justify-content: center;
+    margin-top: 15px;
+    gap: 20px;
+}
+
+.header_buttons button {
+    padding: 10px 25px;
+    border: none;
+    border-radius: 25px;
+    background-color: #6c63ff;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.header_buttons button:hover {
+    background-color: #5751d9;
+}
+
+/* Checkbox container - 5 per row */
+.checkbox_container {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+/* Checkbox label */
+.checkbox_container label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    background: #f5f5f5;
+    padding: 8px;
+    border-radius: 10px;
+}
+
+/* Input for sequence name */
+#queue_name {
+    width: 100%;
+    padding: 12px;
+    margin-top: 8px;
+    margin-bottom: 20px;
+    border-radius: 10px;
+    border: 1px solid #ccc;
+    font-size: 16px;
+}
+
+/* Buttons for submitting, clearing, etc. */
+button {
+    margin: 5px;
+    padding: 12px 24px;
+    font-size: 16px;
+    border: none;
+    border-radius: 25px;
+    background-color: #6c63ff;
+    color: white;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+button:hover {
+    background-color: #5751d9;
+}
+
+.top-bar {
+  position: relative;
+  text-align: center;
+  padding: 30px 20px 0 20px;
+}
+
+.top-bar h1 {
+  font-size: 40px;
+  color: white;
+}
+
+#loginBar {
+  position: absolute;
+  top: 20px;
+  right: 30px;
+  background: white;
+  padding: 10px 20px;
+  border-radius: 25px;
+  color: black;
+  font-weight: bold;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#loginBar a {
+  background-color: #ff6666;
+  color: white;
+  padding: 6px 14px;
+  border-radius: 20px;
+  text-decoration: none;
+  font-size: 0.9em;
+  transition: background 0.3s;
+}
+
+#loginBar a:hover {
+  background-color: #ff3333;
+}
+
+/* Generated sequence box */
+.generated-sequence {
+    background: white;
+    padding: 30px;
+    margin: 40px auto 0 auto;
+    max-width: 1000px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Header section inside generated box */
+.generated-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+/* Cooldown timer next to title */
+#cooldown_message {
+    color: orange;
+    font-style: italic;
+}
+
+/* Container for the entire generated sequence */
+.generated-sequence {
+    background: white;
+    padding: 30px;
+    margin: 40px auto;
+    max-width: 1000px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Header inside the generated sequence */
+.generated-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+/* Cooldown timer styling */
+#cooldown_message {
+    color: orange;
+    font-style: italic;
+}
+
+/* Thumbnail gallery (5 per row, inside the white box) */
+.generated-thumbnails {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 20px;
+    width: 100%;
+    margin-top: 20px;
+}
+
+/* Each thumbnail box */
+.thumbnail-box {
+    background: #f9f9f9;
+    padding: 10px;
+    border-radius: 10px;
+    text-align: center;
+    transition: transform 0.2s;
+}
+
+/* Images inside thumbnails */
+.thumbnail-box img {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    object-fit: cover;
+}
+
+/* Name caption under image */
+.thumbnail-box div {
+    font-weight: bold;
+    font-size: 14px;
+    color: #333;
+}
+
+/* Hover effect */
+.thumbnail-box:hover {
+    transform: scale(1.05);
+}

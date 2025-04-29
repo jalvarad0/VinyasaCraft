@@ -1,60 +1,83 @@
 <?php
-    //Notes for self:
-    // - https://medium.com/hackademia/how-to-make-a-php-gemini-ai-web-app-6b592ef64f9e -> Example of quick setup
-    // -  https://github.com/google-gemini-php/client  -> examples
-    // - https://github.com/gemini-api-php/client -> examples
-    header('Content-Type: application/json');
-    require_once 'config.php'; 
-    $DEBUG = false;
-    // Gemini helper function that will send the prompt over to gemini and check response
-    function call_gemini_API($gemini_api_key, $prompt) {
-        
-        // We establish the url + package in the key 
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=' . $gemini_api_key;
+//Notes for self:
+// - https://medium.com/hackademia/how-to-make-a-php-gemini-ai-web-app-6b592ef64f9e -> Example of quick setup
+// - https://github.com/google-gemini-php/client  -> examples
+// - https://github.com/gemini-api-php/client -> examples
+header('Content-Type: application/json');
+require_once 'config.php'; 
+$DEBUG = false;
 
-        // We now format the data based on what gemini is expecting https://ai.google.dev/api/generate-content#v1beta.models.generateContent
-        $data = [
-            'contents' => [
-                ['parts' => [['text' => $prompt]]]
-            ]
-        ];
+// Gemini helper function that will send the prompt over to gemini and check response
+function call_gemini_API($gemini_api_key, $prompt) {
+    
+    // We establish the url + package in the key 
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=' . $gemini_api_key;
 
-        // Lets encode into a json object
-        $json_data = json_encode($data);
-        error_log("Sending to Gemini:");
-        error_log($json_data);
+    // We now format the data based on what gemini is expecting https://ai.google.dev/api/generate-content#v1beta.models.generateContent
+    $data = [
+        'contents' => [
+            ['parts' => [['text' => $prompt]]]
+        ]
+    ];
 
-        // Lets now instantiate a cURL session + configure it which will allow us to send json to gemini
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); // Don't output, just return response
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $json_data); // Lets feed our json_data
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']); // Lets set content type so that it knows its json
-        $response = curl_exec($ch); // Execute the request and store response
-        error_log("Gemini response:");
-        error_log($response);
+    // Lets encode into a json object
+    $json_data = json_encode($data);
+    error_log("Sending to Gemini:");
+    error_log($json_data);
 
-        // Check for errors
-        if (curl_errno($ch)) {
-            return ['error' => curl_error($ch)];
-        }
+    // Lets now instantiate a cURL session + configure it which will allow us to send json to gemini
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); // Don't output, just return response
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $json_data); // Lets feed our json_data
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']); // Lets set content type so that it knows its json
+    $response = curl_exec($ch); // Execute the request and store response
+    error_log("Gemini response:");
+    error_log($response);
 
-        // Lets now check for HTTP errors
-        $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch); // Exit gracefully
-
-        if ($status_code != 200) {
-            return ['error' => 'Gemini API call failed with status ' . $status_code];
-        }
-
-        // We successfully got a response, lets return.
-        return json_decode($response, true);
+    // Check for errors
+    if (curl_errno($ch)) {
+        return ['error' => curl_error($ch)];
     }
+
+    // Lets now check for HTTP errors
+    $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch); // Exit gracefully
+
+    if ($status_code != 200) {
+        return ['error' => 'Gemini API call failed with status ' . $status_code];
+    }
+
+    // We successfully got a response, lets return.
+    return json_decode($response, true);
+}
 
 // Alright, lets read the URL query string and make decision based off of that
 $endpoint = $_GET['endpoint'] ?? '';
 
-// Case where endpoint it options and we need to query for supported poses and
-// send it to our main page
+// Case where endpoint is pose-data; in which case we fetch all pose images + names
+if ($endpoint === 'pose-data') {
+    $sql = "SELECT english_name, sanskrit_name, link FROM supported_postures ORDER BY english_name ASC";
+    $result = $conn->query($sql);
+
+    if (!$result) {
+        echo json_encode(['error' => 'Failed to fetch poses']);
+        exit();
+    }
+
+    $poses = [];
+    while ($row = $result->fetch_assoc()) {
+        $poses[] = [
+            'english_name' => $row['english_name'],
+            'sanskrit_name' => $row['sanskrit_name'],
+            'link' => $row['link']
+        ];
+    }
+
+    echo json_encode(['poses' => $poses]);
+    exit();
+}
+
+// Case where endpoint it options and we need to query for supported poses and send it to our main page
 if ($endpoint === 'options') {
     $sql = "SELECT english_name, targets FROM supported_postures";
     $result = $conn->query($sql);
@@ -140,10 +163,9 @@ if ($endpoint === 'generate-sequence') {
 
     $stmt->bind_param($types, ...$params);
     $stmt->execute();
-    $result = $stmt->get_result(); // Lets execute that thang
+    $result = $stmt->get_result();
 
-    // Lets start grab all of the poses that met our checkboxes and store them in an array
-    // so that we can use it for gemini query
+    // Lets start grab all of the poses that met our checkboxes and store them in an array so that we can use it for gemini query
     $pose_list = [];
     while ($row = $result->fetch_assoc()) {
         $pose_list[] = $row['english_name'];
@@ -160,10 +182,9 @@ if ($endpoint === 'generate-sequence') {
     if ($DEBUG) echo $pose_list_string; 
 
     $prompt = "Create a yoga sequence only using the following poses: $pose_list_string.
-    The sequence should start and end with Corpse Pose.
-    Return it in CSV format with columns: Pose Name, Duration (seconds).
-    Please ensure the spelling matches what is given. Do not include anything other than
-    what I have asked for.";
+    The sequence should start and end with Corpse Pose. Return it in CSV format with columns: Pose Name.
+    Please ensure the spelling matches what is given. Do not include anything other than what I have asked
+    for. Do not allow for duplicates back to back.";
 
     if ($DEBUG) echo $prompt; 
 
@@ -195,6 +216,12 @@ if ($endpoint === 'generate-sequence') {
             $pose_names[] = trim($columns[0]);
         }
     }
+
+    // Lets now filter the result so only allowed poses stay
+    $pose_names = array_values(array_filter($pose_names, function($pose) use ($pose_list) {
+        return in_array($pose, $pose_list, true);
+    }));
+
     if ($DEBUG) echo json_encode($pose_names);
 
     // Yessir, encode and send off to caller!
@@ -212,15 +239,15 @@ if ($endpoint === 'save-sequence') {
     $queue_name = $input['queue_name'] ?? '';
     $pose_names = $input['pose_names'] ?? [];
 
-    // Did the user try sending us an empty flow or one without a name??? I guard against
-    // this already but two checks is better than no checks.
+    // Did the user try sending us an empty flow or one without a name??? I guard against this already but two checks is better than no checks.
     if (!$queue_name || empty($pose_names)) {
         echo json_encode(['error' => 'Missing queue name or poses']);
         exit();
     }
     
     if($DEBUG) echo $queue_name; 
-    if($DEBUG) echo $pose_names; 
+    if($DEBUG) echo json_encode($pose_names);
+
     // Lets timestamp when this query was made
     $createdAt = date('Y-m-d H:i:s');
     if (empty($_SESSION['user_id'])) {
@@ -241,7 +268,6 @@ if ($endpoint === 'save-sequence') {
     // Lets encode the poses into a json variable
     $items_json = json_encode($pose_names);
     $stmt->bind_param('sssi', $queue_name, $items_json, $createdAt, $userId);
-
 
     // Lets now try executing the statement against our db
     if ($stmt->execute()) {

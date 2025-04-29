@@ -1,8 +1,9 @@
 <?php
+// get_queue.php
 require 'config.php';
 require_login();
 
-// validate incoming ID
+// Validate incoming ID
 if (empty($_GET['id']) || !ctype_digit($_GET['id'])) {
     echo json_encode(['success' => false, 'message' => 'Invalid queue ID.']);
     exit;
@@ -11,6 +12,7 @@ if (empty($_GET['id']) || !ctype_digit($_GET['id'])) {
 $qid    = (int)$_GET['id'];
 $userId = $_SESSION['user_id'];
 
+// Use _id here, not id
 $stmt = $conn->prepare("
     SELECT queue_name, items
       FROM saved_queues

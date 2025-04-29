@@ -2,74 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gemini Yoga Flow Generator</title>
-
-  <style>
-    /* Added style to display checkboxes in a grid, 5 per row */
-    .checkbox_container {
-        display: grid;
-        grid-template-columns: repeat(5, 1fr); /* 5 items per row */
-        gap: 10px;
-        margin-bottom: 20px;
-    }
-    .checkbox_container label {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        font-size: 14px;
-    }
-    .input_container {
-        padding: 20px;
-    }
-    #results_container {
-        padding: 20px;
-    }
-    button {
-        margin: 5px;
-        padding: 10px 20px;
-        font-size: 14px;
-    }
-    h1 {
-        text-align: center;
-    }
-    /* New: style for the top-right logout button */
-    #logout_button {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        padding: 8px 15px;
-        background-color: #ff4d4d;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-    }
-    /* New: style for button row under header */
-    .header_buttons {
-        display: flex;
-        justify-content: center;
-        margin-top: 10px;
-        margin-bottom: 20px;
-    }
-    .header_buttons button {
-        margin: 0 10px;
-        padding: 10px 20px;
-    }
-  </style>
+  <link rel="stylesheet" href="./css/stylesheet.css?a=1">
 </head>
 
 <body>
 
-<button id="logout_button">Logout</button>
+<!-- Page Title and Logout Button -->
+<h1>Gemini Yoga Flow Generator</h1>
+<button id="logout_button" style="position: absolute; top: 20px; right: 30px;">Logout</button>
 
-<h1> Gemini Flow Generator </h1>
-
-<div class="header_buttons">
+<!-- Home and Manual Flow Creation Buttons -->
+<div class="header_buttons" style="margin-top: 20px; text-align: center;">
   <button id="home_button">Home</button>
   <button id="flow_creation">Manual Flow Creation</button>
 </div>
 
+<!-- Input container -->
 <div class="input_container">
   <h2>Choose Poses:</h2>
   <div id="pose_options" class="checkbox_container"></div>
@@ -78,9 +28,9 @@
   <div id="target_options" class="checkbox_container"></div>
 
   <h2>Sequence Name:</h2>
-  <input type="text" id="queue_name" placeholder="Type Name">
+  <input type="text" id="queue_name" placeholder="Type Sequence Name">
 
-  <div style="margin-top: 20px;">
+  <div style="margin-top: 30px; text-align: center;">
     <button id="submit_query">Generate Sequence</button>
     <button id="regenerate_query" disabled>Regenerate Flow</button>
     <button id="clear_query">Clear Selection</button>
@@ -88,301 +38,239 @@
   </div>
 </div>
 
+<!-- Results container (thumbnails will appear here inside a white box) -->
 <div id="results_container"></div>
 
 <script>
-    // DEBUG flag
-    let DEBUG = false;
+// DEBUG flag
+let DEBUG = false;
 
-    // Variable declaration (stuff getter)
-    const pose_options_div = document.getElementById('pose_options');
-    const target_options_div = document.getElementById('target_options');
-    const submit_query_button = document.getElementById('submit_query');
-    const regenerate_query_button = document.getElementById('regenerate_query');
-    const clear_query_button = document.getElementById('clear_query');
-    const save_query_button = document.getElementById('save_query');
-    const results_container = document.getElementById('results_container');
-    const queue_name_input = document.getElementById('queue_name');
-    const logout_button = document.getElementById('logout_button');
-    const home_button = document.getElementById('home_button');
-    const saved_flows_button = document.getElementById('saved_flows_button');
+// Variables
+const pose_options_div = document.getElementById('pose_options');
+const target_options_div = document.getElementById('target_options');
+const submit_query_button = document.getElementById('submit_query');
+const regenerate_query_button = document.getElementById('regenerate_query');
+const clear_query_button = document.getElementById('clear_query');
+const save_query_button = document.getElementById('save_query');
+const results_container = document.getElementById('results_container');
+const queue_name_input = document.getElementById('queue_name');
+const logout_button = document.getElementById('logout_button');
+const home_button = document.getElementById('home_button');
+const flow_creation = document.getElementById('flow_creation');
+let allPosesData = [];
 
-    // Arrays that will help us display and build out query
-    let generated_pose_names = []; // All the poses we support
-    let last_selected_names = []; // All of the poses the user selects
-    let last_selected_targets = []; // All of the target areas user selects
-    let cooldown_timer = null; // We need a timer for Gemini throttling
-    let cooldown_seconds = 45; // Set to 45 second (we are allowed 3 queries a min).
+let generated_pose_names = [];
+let last_selected_names = [];
+let last_selected_targets = [];
+let cooldown_timer = null;
+let cooldown_seconds = 45;
 
-    // This function will handle populating the poses as checkboxes
-    async function fetch_options() {
-        try {
-            const response = await fetch('api_handler.php?endpoint=options');
-            if (DEBUG) console.log(response);
-            const data = await response.json();
-            if (DEBUG) console.log(data);
+// Fetch pose and target options
+async function fetch_options() {
+  try {
+    const poseResponse = await fetch('api_handler.php?endpoint=pose-data');
+    const poseData = await poseResponse.json();
+    allPosesData = poseData.poses;
 
-            data.english_names.forEach(name => {
-                const label = document.createElement('label');
-                label.innerHTML = `<input type="checkbox" class="pose_checkbox" value="${name}"> ${name}`;
-                pose_options_div.appendChild(label);
-            });
+    const optionsResponse = await fetch('api_handler.php?endpoint=options');
+    const optionsData = await optionsResponse.json();
 
-            data.targets.forEach(target => {
-                const label = document.createElement('label');
-                label.innerHTML = `<input type="checkbox" class="target_checkbox" value="${target}"> ${target}`;
-                target_options_div.appendChild(label);
-            });
-        } catch (error) {
-            console.error('Failed to fetch options:', error);
-        }
-    }
-
-    // This function will help us control how quickly user can regenerate a gemini query
-    function start_cooldown() {
-        submit_query_button.disabled = true;
-        regenerate_query_button.disabled = true;
-        if (document.getElementById('cooldown_message')) {
-            document.getElementById('cooldown_message').remove();
-        }
-        const cooldown_msg = document.createElement('p');
-        cooldown_msg.id = 'cooldown_message';
-        cooldown_msg.style.color = 'orange';
-        cooldown_msg.style.fontStyle = 'italic';
-        cooldown_msg.textContent = `Gemini Cooldown: Please wait ${cooldown_seconds} seconds...`;
-        results_container.appendChild(cooldown_msg);
-
-        let seconds_left = cooldown_seconds;
-        cooldown_timer = setInterval(() => {
-            seconds_left--;
-            if (seconds_left > 0) {
-                const message_element = document.getElementById('cooldown_message');
-                if (message_element) {
-                    message_element.textContent = `Query Cooldown: Please wait ${seconds_left} seconds...`;
-                }
-            } else {
-                clearInterval(cooldown_timer);
-                submit_query_button.disabled = false;
-                regenerate_query_button.disabled = generated_pose_names.length > 0 ? false : true;
-                const message_element = document.getElementById('cooldown_message');
-                if (message_element) {
-                    message_element.textContent = `Cooldown ended! You can generate again.`;
-                    message_element.style.color = 'green';
-                    message_element.style.fontStyle = 'normal';
-                }
-            }
-        }, 1000);
-    }
-
-    // This function will handle packaging up our selections and sending it over to api_handler for querying
-    async function send_query() {
-
-        // Lets find all of the class pose_checkbox + target_checkbox that are checked and convert them into an array
-        const selected_names = Array.from(document.querySelectorAll('.pose_checkbox:checked')).map(curr => curr.value);
-        const selected_targets = Array.from(document.querySelectorAll('.target_checkbox:checked')).map(curr => curr.value);
-        const queue_name = queue_name_input.value.trim();
-        if (DEBUG) console.log(selected_names);
-        if (DEBUG) console.log(selected_targets);
-        if (DEBUG) console.log(queue_name);
-
-        if ((selected_names.length === 0 && selected_targets.length === 0) || !queue_name) {
-            results_container.textContent = 'Please select poses/targets and enter a sequence name.';
-            return;
-        }
-
-        // Lets save the array in case user decides to regenerate
-        last_selected_names = selected_names;
-        last_selected_targets = selected_targets;
-
-        // Okay now that we have all of the checked items, lets work on sending it to gemini
-        try {
-            
-            // Lets post the payload over to our api_handler in the format it is expecting and wait
-            const response = await fetch('api_handler.php?endpoint=generate-sequence', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ names: selected_names, targets: selected_targets, queue_name })
-            });
-
-            // Okay, gemini should have responded. Lets parse that bad boy.
-            const data = await response.json();
-            if (DEBUG) console.log(data);
-            if (DEBUG) console.log(data.gemini); // Lets make sure gemini gave us proper response
-            if (DEBUG) console.log(data.pose_names); // Lets make sure pose names are good
-
-            // Cool lets now go into parsing assuming we got a successful response
-            if (data.pose_names && data.gemini) {
-                generated_pose_names = data.pose_names;
-
-                // Lets make a div for where we will show the parsed output
-                const sequence_div = document.createElement('div');
-                sequence_div.innerHTML = `<h3>Generated Sequence:</h3><pre>${data.gemini}</pre><p>Sequence ready!</p>`;
-
-                // Clear results but preserve cooldown if running (clone.Node allows us to make a deep copy)
-                const cooldown_element = document.getElementById('cooldown_message');
-                const cooldown_snapshot = cooldown_element ? cooldown_element.cloneNode(true) : null; // If it exists, deep copy. Else null.
-
-                results_container.innerHTML = '';
-                results_container.appendChild(sequence_div);
-
-                // If the timer was running, lets restore it!
-                if (cooldown_snapshot) {
-                    results_container.appendChild(cooldown_snapshot);
-                }
-
-                // Now that we successfully created a query, lets enable the buttons for saving and regenerating
-                save_query_button.disabled = false;
-                regenerate_query_button.disabled = false;
-                start_cooldown();
-            } else {
-                results_container.textContent = data.error || 'No sequence generated.';
-            }
-        } catch (error) {
-            console.error('Error sending query:', error);
-            results_container.textContent = `An error occurred: ${error.message}`;
-        }
-    }
-
-    // This function will handle regenerating the query using gemini if user asks
-    // for it
-    async function regenerate_query() {
-        
-        //Lets grab the elements based off what we last selected
-        // TODO BUG: Need to test what happens when user switches up selection and regenerate. We don't handle. 
-        const queue_name = queue_name_input.value.trim();
-
-        if (DEBUG) console.log(last_selected_names);
-        if (DEBUG) console.log(last_selected_targets);
-        if (DEBUG) console.log(queue_name);
-
-        if ((last_selected_names.length === 0 && last_selected_targets.length === 0) || !queue_name) {
-            results_container.textContent = 'No previous selection found. Please make a new selection.';
-            return;
-        }
-
-        // Again, we hit gemini as before
-        try {
-            const response = await fetch('api_handler.php?endpoint=generate-sequence', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ names: last_selected_names, targets: last_selected_targets, queue_name })
-            });
-
-            const data = await response.json();
-            if (DEBUG) console.log(response.json());
-
-            if (data.pose_names && data.gemini) {
-                generated_pose_names = data.pose_names;
-
-                const sequence_div = document.createElement('div');
-                sequence_div.innerHTML = `<h3>Regenerated Sequence:</h3><pre>${data.gemini}</pre><p>Sequence ready!</p>`;
-
-                const cooldown_element = document.getElementById('cooldown_message');
-                const cooldown_snapshot = cooldown_element ? cooldown_element.cloneNode(true) : null;
-
-                results_container.innerHTML = '';
-                results_container.appendChild(sequence_div);
-
-                if (cooldown_snapshot) {
-                    results_container.appendChild(cooldown_snapshot);
-                }
-
-                save_query_button.disabled = false;
-                start_cooldown();
-            } else {
-                results_container.textContent = data.error || 'No sequence regenerated.';
-            }
-        } catch (error) {
-            console.error('Error regenerating query:', error);
-            results_container.textContent = `An error occurred: ${error.message}`;
-        }
-    }
-
-    // This function will handle saving the flow we currently have presented to the user
-    async function save_flow() {
-        const queue_name = queue_name_input.value.trim();
-        if (!queue_name || generated_pose_names.length === 0) {
-            alert('No valid flow to save.');
-            return;
-        }
-
-        try {
-            // Lets save our flow to the database!
-            const response = await fetch('api_handler.php?endpoint=save-sequence', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ queue_name, pose_names: generated_pose_names })
-            });
-
-            // Alright, lets make sure it worked!
-            const data = await response.json();
-            if (data.success) {
-                results_container.innerHTML += `<p><strong>Sequence Saved Successfully!</strong></p>`;
-                save_query_button.disabled = true;
-            } else {
-                results_container.textContent = data.error || 'Failed to save sequence.';
-            }
-
-            // Clear all selections after save
-            document.querySelectorAll('.pose_checkbox, .target_checkbox').forEach(curr => curr.checked = false);
-
-            // Clear input box
-            queue_name_input.value = '';
-
-            // Disable buttons
-            save_query_button.disabled = true;
-            regenerate_query_button.disabled = true;
-
-            // Reset arrays
-            generated_pose_names = [];
-            last_selected_names = [];
-            last_selected_targets = [];
-        } catch (error) {
-            console.error('Error saving flow:', error);
-            results_container.textContent = `An error occurred: ${error.message}`;
-        }
-    }
-
-    // Lets handle page reset
-    clear_query_button.addEventListener('click', () => {
-        // Uncheck all the boxes
-        document.querySelectorAll('.pose_checkbox, .target_checkbox').forEach(curr => curr.checked = false);
-
-        // Lets reset the cooldown timer
-        const cooldown_element = document.getElementById('cooldown_message');
-        const cooldown_snapshot = cooldown_element ? cooldown_element.cloneNode(true) : null;
-
-        results_container.innerHTML = '';
-
-        if (cooldown_snapshot) {
-            results_container.appendChild(cooldown_snapshot);
-        }
-
-        // Reset all of our arrays and variables
-        queue_name_input.value = '';
-        save_query_button.disabled = true;
-        regenerate_query_button.disabled = true;
-        generated_pose_names = [];
-        last_selected_names = [];
-        last_selected_targets = [];
+    optionsData.english_names.forEach(name => {
+      const label = document.createElement('label');
+      label.innerHTML = `<input type="checkbox" class="pose_checkbox" value="${name}"> ${name}`;
+      pose_options_div.appendChild(label);
     });
 
-    save_query_button.addEventListener('click', save_flow);
-    submit_query_button.addEventListener('click', send_query);
-    regenerate_query_button.addEventListener('click', regenerate_query);
-
-    // Added: new button behavior
-    logout_button.addEventListener('click', () => {
-        window.location.href = 'logout.php'; 
-    });
-    home_button.addEventListener('click', () => {
-        window.location.href = 'home.php'; 
-    });
-    flow_creation.addEventListener('click', () => {
-        window.location.href = 'index.php'; 
+    optionsData.targets.forEach(target => {
+      const label = document.createElement('label');
+      label.innerHTML = `<input type="checkbox" class="target_checkbox" value="${target}"> ${target}`;
+      target_options_div.appendChild(label);
     });
 
-    fetch_options();
+  } catch (error) {
+    console.error('Failed to fetch options:', error);
+  }
+}
+
+// Start cooldown timer
+function start_cooldown() {
+  submit_query_button.disabled = true;
+  regenerate_query_button.disabled = true;
+
+  let cooldown_msg = document.getElementById('cooldown_message');
+  if (!cooldown_msg) return;
+
+  let seconds_left = cooldown_seconds;
+  cooldown_msg.textContent = `Cooldown Necessary To Regenerate: Please wait ${seconds_left} seconds...`;
+
+  cooldown_timer = setInterval(() => {
+    seconds_left--;
+    if (seconds_left > 0) {
+      cooldown_msg.textContent = `Cooldown: Please wait ${seconds_left} seconds...`;
+    } else {
+      clearInterval(cooldown_timer);
+      submit_query_button.disabled = false;
+      regenerate_query_button.disabled = generated_pose_names.length > 0 ? false : true;
+      cooldown_msg.textContent = `Cooldown ended! You can generate again.`;
+      cooldown_msg.style.color = 'green';
+      cooldown_msg.style.fontStyle = 'normal';
+    }
+  }, 1000);
+}
+
+// Send new query to Gemini
+async function send_query() {
+  const selected_names = Array.from(document.querySelectorAll('.pose_checkbox:checked')).map(el => el.value);
+  const selected_targets = Array.from(document.querySelectorAll('.target_checkbox:checked')).map(el => el.value);
+  const queue_name = queue_name_input.value.trim();
+
+  if ((selected_names.length === 0 && selected_targets.length === 0) || !queue_name) {
+    results_container.textContent = 'Please select poses/targets and enter a sequence name.';
+    return;
+  }
+
+  last_selected_names = selected_names;
+  last_selected_targets = selected_targets;
+
+  try {
+    const response = await fetch('api_handler.php?endpoint=generate-sequence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ names: selected_names, targets: selected_targets, queue_name })
+    });
+
+    const data = await response.json();
+    if (DEBUG) console.log(data);
+
+    if (data.pose_names && data.gemini) {
+      generated_pose_names = data.pose_names;
+
+      const sequence_div = document.createElement('div');
+      sequence_div.className = 'input_container'; // <--- style like the other input containers
+
+      const header = document.createElement('h3');
+      header.textContent = 'Generated Sequence';
+      sequence_div.appendChild(header);
+
+      const cooldown_msg = document.createElement('p');
+      cooldown_msg.id = 'cooldown_message';
+      cooldown_msg.style.color = 'orange';
+      cooldown_msg.style.fontStyle = 'italic';
+      sequence_div.appendChild(cooldown_msg);
+
+      const thumbnailsDiv = document.createElement('div');
+      thumbnailsDiv.style.display = 'grid';
+      thumbnailsDiv.style.gridTemplateColumns = 'repeat(5, 1fr)';
+      thumbnailsDiv.style.gap = '15px';
+      thumbnailsDiv.style.marginTop = '20px';
+
+      data.pose_names.forEach(poseName => {
+        const poseData = allPosesData.find(p => p.english_name === poseName);
+        if (poseData) {
+          const thumbBox = document.createElement('div');
+          thumbBox.style.background = '#f9f9f9';
+          thumbBox.style.padding = '10px';
+          thumbBox.style.borderRadius = '10px';
+          thumbBox.style.textAlign = 'center';
+          thumbBox.style.width = '100%';
+
+          const img = document.createElement('img');
+          img.src = poseData.link.startsWith('http') ? poseData.link : './images/' + poseData.link;
+          img.alt = poseData.english_name;
+          img.style.width = '100%';
+          img.style.borderRadius = '8px';
+          img.style.marginBottom = '8px';
+
+          const caption = document.createElement('div');
+          caption.textContent = poseData.english_name;
+          caption.style.fontWeight = 'bold';
+          caption.style.fontSize = '14px';
+          caption.style.color = '#333';
+
+          thumbBox.append(img, caption);
+          thumbnailsDiv.appendChild(thumbBox);
+        }
+      });
+
+      sequence_div.appendChild(thumbnailsDiv);
+      results_container.innerHTML = '';
+      results_container.appendChild(sequence_div);
+
+      save_query_button.disabled = false;
+      regenerate_query_button.disabled = false;
+      start_cooldown();
+    } else {
+      results_container.textContent = data.error || 'No sequence generated.';
+    }
+  } catch (error) {
+    console.error('Error sending query:', error);
+    results_container.textContent = `An error occurred: ${error.message}`;
+  }
+}
+
+// Regenerate previous query
+async function regenerate_query() {
+  const queue_name = queue_name_input.value.trim();
+
+  if ((last_selected_names.length === 0 && last_selected_targets.length === 0) || !queue_name) {
+    results_container.textContent = 'No previous selection found. Please make a new selection.';
+    return;
+  }
+
+  await send_query();
+}
+
+// Save the generated flow to database
+async function save_flow() {
+  const queue_name = queue_name_input.value.trim();
+  if (!queue_name || generated_pose_names.length === 0) {
+    alert('No valid flow to save.');
+    return;
+  }
+
+  try {
+    const response = await fetch('api_handler.php?endpoint=save-sequence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queue_name, pose_names: generated_pose_names })
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      // Successful save
+      alert('Sequence saved successfully!');
+      window.location.href = 'home.php';  //
+    } else {
+      results_container.textContent = data.error || 'Failed to save sequence.';
+    }
+  } catch (error) {
+    console.error('Error saving flow:', error);
+    results_container.textContent = `An error occurred: ${error.message}`;
+  }
+}
+
+// Clear selections
+clear_query_button.addEventListener('click', () => {
+  document.querySelectorAll('.pose_checkbox, .target_checkbox').forEach(el => el.checked = false);
+  queue_name_input.value = '';
+  generated_pose_names = [];
+  last_selected_names = [];
+  last_selected_targets = [];
+  results_container.innerHTML = '';
+  save_query_button.disabled = true;
+  regenerate_query_button.disabled = true;
+});
+
+// Event listeners
+submit_query_button.addEventListener('click', send_query);
+regenerate_query_button.addEventListener('click', regenerate_query);
+save_query_button.addEventListener('click', save_flow);
+logout_button.addEventListener('click', () => { window.location.href = 'logout.php'; });
+home_button.addEventListener('click', () => { window.location.href = 'home.php'; });
+flow_creation.addEventListener('click', () => { window.location.href = 'index.php'; });
+
+// Fetch options on load
+fetch_options();
 </script>
 
 </body>

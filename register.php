@@ -1,4 +1,5 @@
 <?php
+// register.php
 require 'config.php';
 
 $errors = [];
@@ -15,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (empty($errors)) {
-        // ensure username/email unique
+        // Ensure username/email unique
         $stmt = $conn->prepare("SELECT id FROM users WHERE username=? OR email=?");
         $stmt->bind_param("ss", $u, $e);
         $stmt->execute();
